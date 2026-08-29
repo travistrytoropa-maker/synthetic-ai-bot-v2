@@ -1,3 +1,4 @@
+from candle_engine import get_historical_candles, get_multi_timeframe_data
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -68,6 +69,54 @@ async def tick(symbol: str):
         }
 
     except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )@app.get("/candles/{symbol}/{timeframe}")
+async def candles(symbol: str, timeframe: str):
+
+    try:
+
+        data = await get_historical_candles(
+            symbol.upper(),
+            timeframe.upper(),
+            500
+        )
+
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "timeframe": timeframe.upper(),
+            "count": len(data),
+            "candles": data
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@app.get("/analysis-data/{symbol}")
+async def analysis_data(symbol: str):
+
+    try:
+
+        data = await get_multi_timeframe_data(
+            symbol.upper(),
+            500
+        )
+
+        return {
+            "status": "success",
+            "symbol": symbol.upper(),
+            "timeframes": data
+        }
+
+    except Exception as e:
+
         raise HTTPException(
             status_code=500,
             detail=str(e)
