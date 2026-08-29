@@ -1,11 +1,22 @@
 import json
 import websockets
 
-DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3"
+DERIV_WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public"
+
+
+async def connect():
+    return await websockets.connect(
+        DERIV_WS_URL,
+        ping_interval=20,
+        ping_timeout=20,
+        close_timeout=10
+    )
 
 
 async def get_active_symbols():
-    async with websockets.connect(DERIV_WS_URL) as ws:
+    ws = await connect()
+
+    try:
         await ws.send(json.dumps({
             "active_symbols": "brief",
             "req_id": 1
@@ -18,11 +29,21 @@ async def get_active_symbols():
                 return message.get("active_symbols", [])
 
             if "error" in message:
-                raise RuntimeError(message["error"].get("message", "Deriv API error"))
+                raise RuntimeError(
+                    message["error"].get(
+                        "message",
+                        "Deriv API error"
+                    )
+                )
+
+    finally:
+        await ws.close()
 
 
 async def get_tick(symbol):
-    async with websockets.connect(DERIV_WS_URL) as ws:
+    ws = await connect()
+
+    try:
         await ws.send(json.dumps({
             "ticks": symbol,
             "subscribe": 0,
@@ -42,4 +63,12 @@ async def get_tick(symbol):
                 }
 
             if "error" in message:
-                raise RuntimeError(message["error"].get("message", "Deriv API error"))
+                raise RuntimeError(
+                    message["error"].get(
+                        "message",
+                        "Deriv API error"
+                    )
+                )
+
+    finally:
+        await ws.close()
