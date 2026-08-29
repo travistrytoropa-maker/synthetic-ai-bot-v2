@@ -1,7 +1,7 @@
 import json
 import websockets
 
-DERIV_WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public"
+DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3"
 
 
 async def connect():
@@ -67,6 +67,39 @@ async def get_tick(symbol):
                     message["error"].get(
                         "message",
                         "Deriv API error"
+                    )
+                )
+
+    finally:
+        await ws.close()
+
+
+async def get_candles(symbol, granularity, count=500):
+    ws = await connect()
+
+    try:
+        request = {
+            "ticks_history": symbol,
+            "style": "candles",
+            "granularity": granularity,
+            "count": count,
+            "end": "latest",
+            "req_id": 10
+        }
+
+        await ws.send(json.dumps(request))
+
+        while True:
+            message = json.loads(await ws.recv())
+
+            if message.get("msg_type") == "candles":
+                return message.get("candles", [])
+
+            if "error" in message:
+                raise RuntimeError(
+                    message["error"].get(
+                        "message",
+                        "Deriv candle API error"
                     )
                 )
 
