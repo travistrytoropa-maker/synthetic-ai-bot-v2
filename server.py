@@ -1,3 +1,4 @@
+from market_scanner import scan_markets
 from market_scanner import scan_market
 from pro_analysis_engine import pro_analysis
 from market_analyzer import analyze_market
