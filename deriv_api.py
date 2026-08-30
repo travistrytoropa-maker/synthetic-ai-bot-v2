@@ -1,4 +1,3 @@
-import asyncio
 import json
 import websockets
 
@@ -14,34 +13,37 @@ TIMEFRAME_SECONDS = {
 
 
 async def deriv_request(request):
-    """
-    Send one request to Deriv and return the response.
-    """
 
     async with websockets.connect(
         DERIV_WS_URL,
         ping_interval=20,
         ping_timeout=20,
         close_timeout=10
-    ) as websocket:
+    ) as ws:
 
-        await websocket.send(
-            json.dumps(request)
-        )
+        await ws.send(json.dumps(request))
 
         while True:
 
-            raw = await websocket.recv()
+            message = await ws.recv()
 
-            data = json.loads(raw)
+            data = json.loads(message)
 
             if "error" in data:
 
-                raise RuntimeError(
-                    data["error"].get(
-                        "message",
-                        "Deriv API error"
+                error = data["error"]
+
+                if isinstance(error, dict):
+
+                    raise RuntimeError(
+                        error.get(
+                            "message",
+                            "Deriv API error"
+                        )
                     )
+
+                raise RuntimeError(
+                    str(error)
                 )
 
             if data.get("msg_type") == "ping":
@@ -53,16 +55,24 @@ async def deriv_request(request):
 async def get_markets():
 
     response = await deriv_request({
-        "active_symbols": "brief",
+
+        "active_symbols": "full",
+
         "product_type": "basic"
+
     })
 
-    markets = []
-
     symbols = response.get(
-        "active_symbols",
-        []
+        "active_symbols"
     )
+
+    if not isinstance(symbols, list):
+
+        raise RuntimeError(
+            "Deriv returned no active_symbols list"
+        )
+
+    markets = []
 
     for item in symbols:
 
@@ -71,18 +81,18 @@ async def get_markets():
 
         symbol = item.get("symbol")
 
-        name = (
+        if not symbol:
+            continue
+
+        display_name = (
             item.get("display_name")
             or item.get("name")
             or symbol
         )
 
-        if not symbol:
-            continue
-
         markets.append({
-            "symbol": symbol,
-            "name": name
+            "symbol": str(symbol),
+            "name": str(display_name)
         })
 
     return markets
@@ -94,17 +104,18 @@ async def get_candles(
     count=200
 ):
 
-    timeframe = timeframe.upper()
+    symbol = str(symbol).strip()
+
+    timeframe = str(
+        timeframe
+    ).upper()
 
     if timeframe not in TIMEFRAME_SECONDS:
 
         raise ValueError(
-            f"Unsupported timeframe: {timeframe}"
+            "Unsupported timeframe: "
+            + timeframe
         )
-
-    granularity = TIMEFRAME_SECONDS[
-        timeframe
-    ]
 
     response = await deriv_request({
 
@@ -112,7 +123,10 @@ async def get_candles(
 
         "style": "candles",
 
-        "granularity": granularity,
+        "granularity":
+            TIMEFRAME_SECONDS[
+                timeframe
+            ],
 
         "count": int(count),
 
@@ -121,45 +135,46 @@ async def get_candles(
     })
 
     candles = response.get(
-        "candles",
-        []
+        "candles"
     )
 
     if not isinstance(candles, list):
 
-        raise ValueError(
-            "Deriv returned invalid candle data"
+        raise RuntimeError(
+            "Deriv returned no candle list"
         )
 
-    normalized = []
+    result = []
 
-    for candle in candles:
+    for item in candles:
 
-        if not isinstance(candle, dict):
+        if not isinstance(item, dict):
             continue
 
         try:
 
-            normalized.append({
+            result.append({
+
                 "epoch": int(
-                    candle["epoch"]
+                    item["epoch"]
                 ),
 
                 "open": float(
-                    candle["open"]
+                    item["open"]
                 ),
 
                 "high": float(
-                    candle["high"]
+                    item["high"]
                 ),
 
                 "low": float(
-                    candle["low"]
+                    item["low"]
                 ),
 
                 "close": float(
-                    candle["close"]
+                    item["close"]
                 )
+
             })
 
         except (
@@ -167,12 +182,16 @@ async def get_candles(
             TypeError,
             ValueError
         ):
+
             continue
 
-    if len(normalized) == 0:
+    if not result:
 
-        raise ValueError(
-            f"No candles returned for {symbol} {timeframe}"
+        raise RuntimeError(
+            "No valid candles returned for "
+            + symbol
+            + " "
+            + timeframe
         )
 
-    return normalized
+    return result
