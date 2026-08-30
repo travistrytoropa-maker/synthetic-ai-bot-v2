@@ -10,14 +10,13 @@ from deriv_api import (
 
 app = FastAPI(
     title="Synthetic AI Signal Engine",
-    version="2.1.0"
+    version="2.2.0"
 )
 
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
@@ -25,17 +24,14 @@ app.add_middleware(
 
 @app.get("/")
 async def home():
-
     return {
         "status": "online",
-        "message": "Synthetic AI Signal Engine is running",
-        "version": "2.1.0"
+        "message": "Synthetic AI Signal Engine is running"
     }
 
 
 @app.get("/health")
 async def health():
-
     return {
         "status": "healthy"
     }
@@ -45,20 +41,19 @@ async def health():
 async def markets():
 
     try:
-
-        markets = await get_active_symbols()
+        symbols = await get_active_symbols()
 
         return {
             "status": "success",
-            "count": len(markets),
-            "markets": markets
+            "count": len(symbols),
+            "markets": symbols
         }
 
-    except Exception as error:
+    except Exception as e:
 
         return {
             "status": "error",
-            "message": str(error)
+            "message": str(e)
         }
 
 
@@ -66,32 +61,23 @@ async def markets():
 async def tick(symbol: str):
 
     try:
-
-        result = await get_tick(
-            symbol.upper()
-        )
+        data = await get_tick(symbol.upper())
 
         return {
             "status": "success",
-            "data": result
+            "data": data
         }
 
-    except Exception as error:
+    except Exception as e:
 
         return {
             "status": "error",
-            "symbol": symbol.upper(),
-            "message": str(error)
+            "message": str(e)
         }
 
 
 @app.get("/candles/{symbol}/{timeframe}")
-async def candles(
-    symbol: str,
-    timeframe: str
-):
-
-    timeframe = timeframe.upper()
+async def candles(symbol: str, timeframe: str):
 
     timeframes = {
         "M5": 300,
@@ -99,34 +85,48 @@ async def candles(
         "H1": 3600
     }
 
+    timeframe = timeframe.upper()
+
     if timeframe not in timeframes:
 
         return {
             "status": "error",
-            "message": "Use M5, M15 or H1"
+            "message": "Timeframe must be M5, M15 or H1"
         }
 
     try:
 
-        data = await get_candles(
-            symbol=symbol.upper(),
-            granularity=timeframes[timeframe],
-            count=200
+        candles = await get_candles(
+            symbol.upper(),
+            timeframes[timeframe],
+            100
         )
+
+        cleaned = []
+
+        for candle in candles:
+
+            cleaned.append({
+                "epoch": candle["epoch"],
+                "open": candle["open"],
+                "high": candle["high"],
+                "low": candle["low"],
+                "close": candle["close"]
+            })
 
         return {
             "status": "success",
             "symbol": symbol.upper(),
             "timeframe": timeframe,
-            "count": len(data),
-            "candles": data
+            "count": len(cleaned),
+            "candles": cleaned
         }
 
-    except Exception as error:
+    except Exception as e:
 
         return {
             "status": "error",
             "symbol": symbol.upper(),
             "timeframe": timeframe,
-            "message": str(error)
+            "message": str(e)
         }
