@@ -50,14 +50,20 @@ async def health():
     return {
         "status": "healthy"
     }
-
-
 @app.get("/markets")
 async def markets():
+
+    print("===== /markets ENDPOINT CALLED =====", flush=True)
 
     try:
 
         data = await get_markets()
+
+        print(
+            "===== MARKET COUNT =====",
+            len(data),
+            flush=True
+        )
 
         return {
             "status": "success",
@@ -67,10 +73,15 @@ async def markets():
 
     except Exception as error:
 
+        print(
+            "===== MARKET ERROR =====",
+            repr(error),
+            flush=True
+        )
+
         return {
             "status": "error",
-            "error_type":
-                type(error).__name__,
+            "error_type": type(error).__name__,
             "message": str(error)
         }
 
