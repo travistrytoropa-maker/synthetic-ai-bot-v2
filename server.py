@@ -1,3 +1,4 @@
+from deriv_api import get_markets, get_candles
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
