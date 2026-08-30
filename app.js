@@ -1,6 +1,6 @@
-const DERIV_URL =
-    "wss://api.derivws.com/trading/v1/options/ws/public";
-
+const DERIV_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
+console.log("APP.JS LOADED");
+console.log("DERIV URL:", DERIV_URL);
 const connection =
     document.getElementById("connection");
 
