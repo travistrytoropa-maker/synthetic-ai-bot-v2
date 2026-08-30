@@ -106,22 +106,40 @@ function connectDeriv() {
             );
         }
     };
+socket.onerror = function(error) {
+
+    console.error(
+        "Deriv WebSocket error:",
+        error
+    );
+
+    setConnection("● DERIV CONNECTION ERROR");
+
+    setMessage(
+        "Deriv WebSocket connection failed. Check browser console."
+    );
+};
 
 
-    socket.onerror = function(error) {
+socket.onclose = function(event) {
 
-        console.error(
-            "Deriv WebSocket error:",
-            error
-        );
+    console.log(
+        "Deriv WebSocket closed:",
+        event.code,
+        event.reason
+    );
 
-        setConnection("● DERIV CONNECTION ERROR");
+    setConnection("● DISCONNECTED");
 
-        setMessage(
-            "Unable to connect to Deriv market data."
-        );
-    };
+    setMessage(
+        `Connection closed (${event.code}). Retrying...`
+    );
 
+    setTimeout(
+        connectDeriv,
+        5000
+    );
+};
 
     socket.onclose = function() {
 
