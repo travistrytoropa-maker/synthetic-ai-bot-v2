@@ -266,3 +266,45 @@ async def pro_market(symbol: str):
             "error_type": type(error).__name__,
             "message": str(error)
         }
+@app.post("/scan-markets")
+async def scan_markets_endpoint(payload: dict):
+
+    try:
+
+        markets = payload.get(
+            "markets",
+            []
+        )
+
+        if not isinstance(markets, list):
+            return {
+                "status": "error",
+                "message": "markets must be a list"
+            }
+
+        if len(markets) == 0:
+            return {
+                "status": "error",
+                "message": "No markets supplied"
+            }
+
+        results = await scan_markets(
+            markets
+        )
+
+        return {
+            "status": "success",
+            "count": len(results),
+            "markets": results
+        }
+
+    except Exception as error:
+
+        import traceback
+        traceback.print_exc()
+
+        return {
+            "status": "error",
+            "error_type": type(error).__name__,
+            "message": str(error)
+        }
