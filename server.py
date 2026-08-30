@@ -88,3 +88,43 @@ async def candles(
             "timeframe": timeframe,
             "message": str(error)
         }
+@app.post("/analyze")
+async def analyze_market(payload: dict):
+
+    try:
+
+        m5 = payload.get(
+            "M5",
+            []
+        )
+
+        m15 = payload.get(
+            "M15",
+            []
+        )
+
+        h1 = payload.get(
+            "H1",
+            []
+        )
+
+
+        result = multi_timeframe_analysis(
+            m5,
+            m15,
+            h1
+        )
+
+
+        return {
+            "status": "success",
+            "analysis": result
+        }
+
+
+    except Exception as error:
+
+        return {
+            "status": "error",
+            "message": str(error)
+        }
