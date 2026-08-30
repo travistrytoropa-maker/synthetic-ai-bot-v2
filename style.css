@@ -4,102 +4,444 @@
     padding: 0;
 }
 
+
 body {
-    font-family: Arial, sans-serif;
-    background: #0b1020;
-    color: #ffffff;
-    min-height: 100vh;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background:
+        #080b12;
+
+    color:
+        #ffffff;
+
+    min-height:
+        100vh;
 }
 
-header {
-    padding: 24px;
-    text-align: center;
-    background: #11182d;
-    border-bottom: 1px solid #26304d;
+
+.topbar {
+
+    display: flex;
+
+    justify-content:
+        space-between;
+
+    align-items:
+        center;
+
+    padding:
+        22px;
+
+    background:
+        #101521;
+
+    border-bottom:
+        1px solid #242b3a;
+
 }
 
-header h1 {
-    font-size: 26px;
-    margin-bottom: 10px;
+
+.topbar h1 {
+
+    font-size:
+        24px;
+
 }
 
-#connection {
-    font-size: 14px;
-    color: #00e676;
-    font-weight: bold;
+
+.topbar p {
+
+    margin-top:
+        5px;
+
+    color:
+        #8993a6;
+
 }
+
+
+.connection {
+
+    padding:
+        9px 14px;
+
+    border-radius:
+        20px;
+
+    background:
+        #242b3a;
+
+    font-size:
+        13px;
+}
+
+
+.connection.online {
+
+    background:
+        #123b2b;
+
+    color:
+        #64e6a4;
+}
+
+
+.connection.offline {
+
+    background:
+        #451c24;
+
+    color:
+        #ff7887;
+}
+
 
 main {
-    width: 94%;
-    max-width: 1400px;
-    margin: 25px auto;
+
+    padding:
+        20px;
+
+    max-width:
+        1300px;
+
+    margin:
+        auto;
 }
 
-.dashboard {
-    display: grid;
-    grid-template-columns: repeat(
-        auto-fit,
-        minmax(220px, 1fr)
-    );
-    gap: 18px;
+
+.panel {
+
+    background:
+        #101521;
+
+    border:
+        1px solid #242b3a;
+
+    border-radius:
+        16px;
+
+    padding:
+        18px;
+
 }
 
-.card {
-    background: #11182d;
-    border: 1px solid #26304d;
-    border-radius: 14px;
-    padding: 22px;
-    text-align: center;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+
+.panel-title {
+
+    display:
+        flex;
+
+    justify-content:
+        space-between;
+
+    align-items:
+        center;
+
+    margin-bottom:
+        18px;
+
 }
 
-.card h2 {
-    font-size: 17px;
-    margin-bottom: 18px;
+
+.panel-title h2 {
+
+    font-size:
+        19px;
 }
 
-.price {
-    font-size: 25px;
-    font-weight: bold;
-    margin-bottom: 12px;
+
+button {
+
+    border:
+        none;
+
+    border-radius:
+        9px;
+
+    padding:
+        10px 16px;
+
+    background:
+        #315efb;
+
+    color:
+        white;
+
+    cursor:
+        pointer;
+
+    font-weight:
+        bold;
 }
+
+
+.markets {
+
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(
+                280px,
+                1fr
+            )
+        );
+
+    gap:
+        15px;
+}
+
+
+.market-card {
+
+    background:
+        #151b28;
+
+    border:
+        1px solid #293244;
+
+    border-radius:
+        14px;
+
+    padding:
+        16px;
+}
+
+
+.market-header {
+
+    display:
+        flex;
+
+    justify-content:
+        space-between;
+
+    gap:
+        10px;
+
+    margin-bottom:
+        16px;
+}
+
+
+.market-header h3 {
+
+    font-size:
+        16px;
+}
+
+
+.market-header span {
+
+    display:
+        block;
+
+    margin-top:
+        5px;
+
+    color:
+        #7f8a9f;
+
+    font-size:
+        12px;
+}
+
 
 .status {
-    font-size: 13px;
-    color: #8b95b2;
+
+    font-size:
+        11px;
+
+    color:
+        #6fe5a5;
 }
 
-.system {
-    margin-top: 25px;
-    background: #11182d;
-    border: 1px solid #26304d;
-    border-radius: 14px;
-    padding: 22px;
+
+.signal {
+
+    display:
+        flex;
+
+    justify-content:
+        space-between;
+
+    align-items:
+        center;
+
+    padding:
+        12px;
+
+    background:
+        #0d111a;
+
+    border-radius:
+        10px;
+
+    margin-bottom:
+        12px;
 }
 
-.system h2 {
-    margin-bottom: 12px;
+
+.signal span {
+
+    color:
+        #7f8a9f;
+
+    font-size:
+        11px;
 }
 
-#message {
-    color: #aeb7d0;
+
+.signal strong {
+
+    font-size:
+        18px;
 }
 
-@media (max-width: 600px) {
 
-    header h1 {
-        font-size: 21px;
+.metrics {
+
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+
+    gap:
+        8px;
+
+    margin-bottom:
+        12px;
+}
+
+
+.metrics div {
+
+    background:
+        #0d111a;
+
+    border-radius:
+        9px;
+
+    padding:
+        10px;
+}
+
+
+.metrics small {
+
+    display:
+        block;
+
+    color:
+        #7f8a9f;
+
+    margin-bottom:
+        5px;
+
+    font-size:
+        10px;
+}
+
+
+.metrics strong {
+
+    font-size:
+        14px;
+}
+
+
+.timeframes {
+
+    display:
+        flex;
+
+    justify-content:
+        space-between;
+
+    color:
+        #aeb7c8;
+
+    font-size:
+        11px;
+
+    gap:
+        5px;
+}
+
+
+.error {
+
+    padding:
+        12px;
+
+    border-radius:
+        9px;
+
+    background:
+        #3a1820;
+
+    color:
+        #ff8995;
+
+    font-size:
+        13px;
+}
+
+
+@media (
+    max-width: 600px
+) {
+
+    .topbar {
+
+        align-items:
+            flex-start;
+
+        flex-direction:
+            column;
+
+        gap:
+            12px;
+
     }
+
 
     main {
-        width: 92%;
+
+        padding:
+            12px;
+
     }
 
-    .dashboard {
-        grid-template-columns: 1fr;
+
+    .panel {
+
+        padding:
+            12px;
+
     }
 
-    .card {
-        padding: 20px;
+
+    .metrics {
+
+        grid-template-columns:
+            1fr;
+
     }
+
+
+    .timeframes {
+
+        flex-direction:
+            column;
+
+    }
+
 }
