@@ -1,5 +1,5 @@
 const BACKEND_URL =
-    "https://YOUR-BACKEND-URL.onrender.com";
+    "https://synthetic-ai-bot-v2.onrender.com";
 
 
 const marketsContainer =
