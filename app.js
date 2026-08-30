@@ -1,98 +1,157 @@
-const DERIV_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
-console.log("APP.JS LOADED");
-console.log("DERIV URL:", DERIV_URL);
+const DERIV_URL =
+    "wss://api.derivws.com/trading/v1/options/ws/public";
+
 const connection =
     document.getElementById("connection");
 
 const message =
     document.getElementById("message");
 
-connection.textContent =
-    "● TESTING DERIV CONNECTION...";
-
-const ws =
-    new WebSocket(DERIV_URL);
-
-ws.onopen = function () {
-
-    connection.textContent =
-        "● CONNECTED TO DERIV";
-
-    message.textContent =
-        "WebSocket connected successfully.";
-
-    console.log("DERIV CONNECTED");
-
-    ws.send(JSON.stringify({
-        active_symbols: "brief",
-        req_id: 1
-    }));
-};
+let socket;
 
 
-ws.onmessage = function(event) {
+function status(text) {
+    if (connection) {
+        connection.textContent = text;
+    }
+}
 
-    console.log(
-        "DERIV RESPONSE:",
-        event.data
-    );
+
+function messageText(text) {
+    if (message) {
+        message.textContent = text;
+    }
+}
+
+
+function connect() {
+
+    status("● CONNECTING TO DERIV...");
+    messageText("Opening live market connection...");
 
     try {
 
-        const data =
-            JSON.parse(event.data);
-
-        if (
-            data.msg_type ===
-            "active_symbols"
-        ) {
-
-            message.textContent =
-                "Deriv connected. Markets received: " +
-                data.active_symbols.length;
-        }
-
-        if (data.error) {
-
-            message.textContent =
-                "Deriv API error: " +
-                data.error.message;
-        }
+        socket = new WebSocket(DERIV_URL);
 
     } catch (error) {
 
-        message.textContent =
-            "Received invalid response.";
+        status("● CONNECTION FAILED");
+        messageText(error.message);
+        return;
     }
-};
 
 
-ws.onerror = function() {
+    socket.onopen = function () {
 
-    connection.textContent =
-        "● WEBSOCKET ERROR";
+        status("● CONNECTED TO DERIV");
 
-    message.textContent =
-        "The browser could not establish the Deriv connection.";
+        messageText(
+            "Live connection established. Requesting markets..."
+        );
 
-    console.log(
-        "DERIV WEBSOCKET ERROR"
-    );
-};
+        socket.send(
+            JSON.stringify({
+                active_symbols: "brief",
+                req_id: 1
+            })
+        );
+    };
 
 
-ws.onclose = function(event) {
+    socket.onmessage = function(event) {
 
-    connection.textContent =
-        "● CONNECTION CLOSED";
+        console.log(
+            "DERIV:",
+            event.data
+        );
 
-    message.textContent =
-        "WebSocket closed. Code: " +
-        event.code;
+        try {
 
-    console.log(
-        "DERIV CLOSED",
-        event.code,
-        event.reason
-    );
-};
+            const data =
+                JSON.parse(event.data);
+
+
+            if (data.error) {
+
+                status("● DERIV API ERROR");
+
+                messageText(
+                    data.error.message
+                );
+
+                return;
+            }
+
+
+            if (
+                data.msg_type ===
+                "active_symbols"
+            ) {
+
+                const markets =
+                    data.active_symbols || [];
+
+
+                status(
+                    "● LIVE MARKET DATA"
+                );
+
+
+                messageText(
+                    `Connected successfully. ${markets.length} markets received.`
+                );
+
+
+                console.log(
+                    "MARKETS:",
+                    markets
+                );
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Message error:",
+                error
+            );
+        }
+    };
+
+
+    socket.onerror = function(error) {
+
+        console.error(
+            "WEBSOCKET ERROR:",
+            error
+        );
+
+        status(
+            "● WEBSOCKET ERROR"
+        );
+
+        messageText(
+            "The browser could not establish the Deriv WebSocket."
+        );
+    };
+
+
+    socket.onclose = function(event) {
+
+        console.log(
+            "WEBSOCKET CLOSED:",
+            event.code,
+            event.reason
+        );
+
+        status(
+            "● CONNECTION CLOSED"
+        );
+
+        messageText(
+            `Deriv connection closed. Code: ${event.code}`
+        );
+    };
+}
+
+
+connect();
