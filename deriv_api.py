@@ -3,126 +3,176 @@ import json
 import websockets
 
 
-DERIV_WS = "wss://api.derivws.com/trading/v1/options/ws/public"
+DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089"
 
 
-TIMEFRAMES = {
+TIMEFRAME_SECONDS = {
     "M5": 300,
     "M15": 900,
     "H1": 3600
 }
 
 
-async def get_candles(symbol, timeframe, count=200):
+async def deriv_request(request):
+    """
+    Send one request to Deriv and return the response.
+    """
+
+    async with websockets.connect(
+        DERIV_WS_URL,
+        ping_interval=20,
+        ping_timeout=20,
+        close_timeout=10
+    ) as websocket:
+
+        await websocket.send(
+            json.dumps(request)
+        )
+
+        while True:
+
+            raw = await websocket.recv()
+
+            data = json.loads(raw)
+
+            if "error" in data:
+
+                raise RuntimeError(
+                    data["error"].get(
+                        "message",
+                        "Deriv API error"
+                    )
+                )
+
+            if data.get("msg_type") == "ping":
+                continue
+
+            return data
+
+
+async def get_markets():
+
+    response = await deriv_request({
+        "active_symbols": "brief",
+        "product_type": "basic"
+    })
+
+    markets = []
+
+    symbols = response.get(
+        "active_symbols",
+        []
+    )
+
+    for item in symbols:
+
+        if not isinstance(item, dict):
+            continue
+
+        symbol = item.get("symbol")
+
+        name = (
+            item.get("display_name")
+            or item.get("name")
+            or symbol
+        )
+
+        if not symbol:
+            continue
+
+        markets.append({
+            "symbol": symbol,
+            "name": name
+        })
+
+    return markets
+
+
+async def get_candles(
+    symbol,
+    timeframe="M5",
+    count=200
+):
 
     timeframe = timeframe.upper()
 
-    if timeframe not in TIMEFRAMES:
+    if timeframe not in TIMEFRAME_SECONDS:
+
         raise ValueError(
-            "Timeframe must be M5, M15 or H1"
+            f"Unsupported timeframe: {timeframe}"
         )
 
-    request = {
+    granularity = TIMEFRAME_SECONDS[
+        timeframe
+    ]
+
+    response = await deriv_request({
+
         "ticks_history": symbol,
+
         "style": "candles",
-        "granularity": TIMEFRAMES[timeframe],
-        "count": count,
-        "end": "latest",
-        "req_id": 1001
-    }
 
-    try:
+        "granularity": granularity,
 
-        async with websockets.connect(
-            DERIV_WS,
-            origin=None,
-            ping_interval=20,
-            ping_timeout=20,
-            open_timeout=30
-        ) as websocket:
+        "count": int(count),
 
-            await websocket.send(
-                json.dumps(request)
-            )
+        "end": "latest"
 
-            while True:
+    })
 
-                raw = await asyncio.wait_for(
-                    websocket.recv(),
-                    timeout=30
-                )
+    candles = response.get(
+        "candles",
+        []
+    )
 
-                data = json.loads(raw)
+    if not isinstance(candles, list):
 
-                if "error" in data:
-
-                    raise RuntimeError(
-                        data["error"].get(
-                            "message",
-                            "Deriv returned an error"
-                        )
-                    )
-
-                if (
-                    data.get("msg_type")
-                    == "candles"
-                ):
-
-                    candles = []
-
-                    for candle in data.get(
-                        "candles",
-                        []
-                    ):
-
-                        candles.append({
-                            "epoch": int(
-                                candle["epoch"]
-                            ),
-                            "open": float(
-                                candle["open"]
-                            ),
-                            "high": float(
-                                candle["high"]
-                            ),
-                            "low": float(
-                                candle["low"]
-                            ),
-                            "close": float(
-                                candle["close"]
-                            )
-                        })
-
-                    return candles
-
-    except Exception as error:
-
-        raise RuntimeError(
-            f"Historical candle error: {error}"
+        raise ValueError(
+            "Deriv returned invalid candle data"
         )
 
-
-def candle_stats(candles):
-
-    if not candles:
-        return {}
-
-    latest = candles[-1]
-
-    bullish = 0
-    bearish = 0
+    normalized = []
 
     for candle in candles:
 
-        if candle["close"] > candle["open"]:
-            bullish += 1
+        if not isinstance(candle, dict):
+            continue
 
-        elif candle["close"] < candle["open"]:
-            bearish += 1
+        try:
 
-    return {
-        "total": len(candles),
-        "bullish": bullish,
-        "bearish": bearish,
-        "latest_close": latest["close"]
-    }
+            normalized.append({
+                "epoch": int(
+                    candle["epoch"]
+                ),
+
+                "open": float(
+                    candle["open"]
+                ),
+
+                "high": float(
+                    candle["high"]
+                ),
+
+                "low": float(
+                    candle["low"]
+                ),
+
+                "close": float(
+                    candle["close"]
+                )
+            })
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+            continue
+
+    if len(normalized) == 0:
+
+        raise ValueError(
+            f"No candles returned for {symbol} {timeframe}"
+        )
+
+    return normalized
