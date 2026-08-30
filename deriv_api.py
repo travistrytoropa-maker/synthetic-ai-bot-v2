@@ -1,107 +1,143 @@
 import json
+import asyncio
 import websockets
+
 
 DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3"
 
 
-async def connect():
-    return await websockets.connect(
-        DERIV_WS_URL,
-        ping_interval=20,
-        ping_timeout=20,
-        close_timeout=10
-    )
+async def connect_deriv():
+    try:
+        websocket = await websockets.connect(
+            DERIV_WS_URL,
+            ping_interval=20,
+            ping_timeout=20,
+            close_timeout=10,
+            open_timeout=20
+        )
+
+        return websocket
+
+    except Exception as error:
+        raise RuntimeError(
+            f"Could not connect to Deriv: {str(error)}"
+        )
+
+
+async def send_request(request):
+    websocket = None
+
+    try:
+        websocket = await connect_deriv()
+
+        await websocket.send(
+            json.dumps(request)
+        )
+
+        while True:
+
+            response = await asyncio.wait_for(
+                websocket.recv(),
+                timeout=30
+            )
+
+            data = json.loads(response)
+
+            if "error" in data:
+
+                error_message = data["error"].get(
+                    "message",
+                    "Unknown Deriv API error"
+                )
+
+                raise RuntimeError(error_message)
+
+            return data
+
+    except asyncio.TimeoutError:
+
+        raise RuntimeError(
+            "Deriv request timed out"
+        )
+
+    except Exception as error:
+
+        raise RuntimeError(str(error))
+
+    finally:
+
+        if websocket is not None:
+
+            try:
+                await websocket.close()
+
+            except Exception:
+                pass
 
 
 async def get_active_symbols():
-    ws = await connect()
 
-    try:
-        await ws.send(json.dumps({
-            "active_symbols": "brief",
-            "req_id": 1
-        }))
+    data = await send_request({
+        "active_symbols": "brief",
+        "req_id": 1
+    })
 
-        while True:
-            message = json.loads(await ws.recv())
-
-            if message.get("msg_type") == "active_symbols":
-                return message.get("active_symbols", [])
-
-            if "error" in message:
-                raise RuntimeError(
-                    message["error"].get(
-                        "message",
-                        "Deriv API error"
-                    )
-                )
-
-    finally:
-        await ws.close()
+    return data.get(
+        "active_symbols",
+        []
+    )
 
 
 async def get_tick(symbol):
-    ws = await connect()
 
-    try:
-        await ws.send(json.dumps({
-            "ticks": symbol,
-            "subscribe": 0,
-            "req_id": 2
-        }))
+    data = await send_request({
+        "ticks": symbol,
+        "subscribe": 0,
+        "req_id": 2
+    })
 
-        while True:
-            message = json.loads(await ws.recv())
+    tick = data.get("tick")
 
-            if message.get("msg_type") == "tick":
-                tick = message["tick"]
+    if not tick:
 
-                return {
-                    "symbol": tick.get("symbol"),
-                    "price": tick.get("quote"),
-                    "epoch": tick.get("epoch")
-                }
+        raise RuntimeError(
+            f"No tick data received for {symbol}"
+        )
 
-            if "error" in message:
-                raise RuntimeError(
-                    message["error"].get(
-                        "message",
-                        "Deriv API error"
-                    )
-                )
-
-    finally:
-        await ws.close()
+    return {
+        "symbol": tick.get("symbol"),
+        "price": tick.get("quote"),
+        "epoch": tick.get("epoch")
+    }
 
 
-async def get_candles(symbol, granularity, count=500):
-    ws = await connect()
+async def get_candles(
+    symbol,
+    granularity,
+    count=200
+):
 
-    try:
-        request = {
-            "ticks_history": symbol,
-            "style": "candles",
-            "granularity": granularity,
-            "count": count,
-            "end": "latest",
-            "req_id": 10
-        }
+    if count < 10:
+        count = 10
 
-        await ws.send(json.dumps(request))
+    if count > 1000:
+        count = 1000
 
-        while True:
-            message = json.loads(await ws.recv())
+    data = await send_request({
+        "ticks_history": symbol,
+        "style": "candles",
+        "granularity": granularity,
+        "count": count,
+        "end": "latest",
+        "req_id": 3
+    })
 
-            if message.get("msg_type") == "candles":
-                return message.get("candles", [])
+    candles = data.get("candles", [])
 
-            if "error" in message:
-                raise RuntimeError(
-                    message["error"].get(
-                        "message",
-                        "Deriv candle API error"
-                    )
-                )
+    if not candles:
 
-    finally:
-        await ws.close()
+        raise RuntimeError(
+            f"No candle data received for {symbol}"
+        )
+
+    return candles
