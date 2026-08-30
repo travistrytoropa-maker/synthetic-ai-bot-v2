@@ -1,3 +1,4 @@
+from market_scanner import scan_market
 from pro_analysis_engine import pro_analysis
 from market_analyzer import analyze_market
 from analysis_engine import multi_timeframe_analysis
@@ -237,6 +238,30 @@ async def pro_analyze_endpoint(payload: dict):
 
         return {
             "status": "error",
+            "error_type": type(error).__name__,
+            "message": str(error)
+        }
+@app.get("/pro-market/{symbol}")
+async def pro_market(symbol: str):
+
+    try:
+
+        result = await scan_market(symbol)
+
+        return {
+            "status": "success",
+            "result": result
+        }
+
+    except Exception as error:
+
+        import traceback
+
+        traceback.print_exc()
+
+        return {
+            "status": "error",
+            "symbol": symbol.upper(),
             "error_type": type(error).__name__,
             "message": str(error)
         }
