@@ -2,8 +2,19 @@ import json
 import websockets
 
 
-DERIV_WS_URL = "wss://ws.derivws.com/websockets/v3?app_id=1089"
+# ============================================================
+# DERIV API CONNECTION
+# ============================================================
 
+DERIV_WS_URL = (
+    "wss://ws.derivws.com/websockets/v3"
+    "?app_id=1089"
+)
+
+
+# ============================================================
+# SUPPORTED TIMEFRAMES
+# ============================================================
 
 TIMEFRAME_SECONDS = {
     "M5": 300,
@@ -12,6 +23,10 @@ TIMEFRAME_SECONDS = {
 }
 
 
+# ============================================================
+# DERIV REQUEST
+# ============================================================
+
 async def deriv_request(request):
 
     async with websockets.connect(
@@ -19,15 +34,21 @@ async def deriv_request(request):
         ping_interval=20,
         ping_timeout=20,
         close_timeout=10
-    ) as ws:
+    ) as websocket:
 
-        await ws.send(json.dumps(request))
+        await websocket.send(
+            json.dumps(request)
+        )
 
         while True:
 
-            message = await ws.recv()
+            raw_message = await websocket.recv()
 
-            data = json.loads(message)
+            data = json.loads(raw_message)
+
+            # --------------------------------------------
+            # Deriv API error
+            # --------------------------------------------
 
             if "error" in data:
 
@@ -35,46 +56,48 @@ async def deriv_request(request):
 
                 if isinstance(error, dict):
 
-                    raise RuntimeError(
-                        error.get(
-                            "message",
-                            "Deriv API error"
-                        )
+                    message = error.get(
+                        "message",
+                        "Deriv API error"
                     )
 
-                raise RuntimeError(
-                    str(error)
-                )
+                else:
+
+                    message = str(error)
+
+                raise RuntimeError(message)
+
+            # --------------------------------------------
+            # Ignore ping messages
+            # --------------------------------------------
 
             if data.get("msg_type") == "ping":
                 continue
 
             return data
 
+
+# ============================================================
+# MARKET DISCOVERY
+# ============================================================
+
 async def get_markets():
 
     response = await deriv_request({
-        "active_symbols": "full",
-        "product_type": "basic"
+
+        "active_symbols": "brief"
+
     })
 
-    print("===== DERIV MARKET RESPONSE =====")
-    print(response)
-    print("=================================")
-
-    symbols = response.get("active_symbols")
-
-    if symbols is None:
-
-        raise RuntimeError(
-            "Deriv response does not contain active_symbols"
-        )
+    symbols = response.get(
+        "active_symbols",
+        []
+    )
 
     if not isinstance(symbols, list):
 
         raise RuntimeError(
-            "active_symbols is not a list. "
-            + str(type(symbols))
+            "Deriv returned an invalid active_symbols response"
         )
 
     markets = []
@@ -84,28 +107,61 @@ async def get_markets():
         if not isinstance(item, dict):
             continue
 
-        symbol = item.get("symbol")
+        # ----------------------------------------------------
+        # Support current Deriv format AND older format
+        # ----------------------------------------------------
 
-        if not symbol:
-            continue
+        symbol = (
+            item.get("underlying_symbol")
+            or item.get("symbol")
+        )
 
         name = (
-            item.get("display_name")
+            item.get("underlying_symbol_name")
+            or item.get("display_name")
             or item.get("name")
             or symbol
         )
 
+        if not symbol:
+            continue
+
+        market = item.get(
+            "market",
+            ""
+        )
+
+        submarket = item.get(
+            "submarket",
+            ""
+        )
+
+        symbol_type = (
+            item.get("underlying_symbol_type")
+            or item.get("symbol_type")
+            or ""
+        )
+
         markets.append({
+
             "symbol": str(symbol),
-            "name": str(name)
+
+            "name": str(name),
+
+            "market": str(market),
+
+            "submarket": str(submarket),
+
+            "type": str(symbol_type)
+
         })
 
-    print(
-        "DERIV SYMBOLS FOUND:",
-        len(markets)
-    )
-
     return markets
+
+
+# ============================================================
+# CANDLE DATA
+# ============================================================
 
 async def get_candles(
     symbol,
@@ -113,11 +169,17 @@ async def get_candles(
     count=200
 ):
 
-    symbol = str(symbol).strip()
+    symbol = str(
+        symbol
+    ).strip()
 
     timeframe = str(
         timeframe
     ).upper()
+
+    # --------------------------------------------------------
+    # Check timeframe
+    # --------------------------------------------------------
 
     if timeframe not in TIMEFRAME_SECONDS:
 
@@ -126,16 +188,21 @@ async def get_candles(
             + timeframe
         )
 
+    granularity = TIMEFRAME_SECONDS[
+        timeframe
+    ]
+
+    # --------------------------------------------------------
+    # Request candles
+    # --------------------------------------------------------
+
     response = await deriv_request({
 
         "ticks_history": symbol,
 
         "style": "candles",
 
-        "granularity":
-            TIMEFRAME_SECONDS[
-                timeframe
-            ],
+        "granularity": granularity,
 
         "count": int(count),
 
@@ -143,45 +210,57 @@ async def get_candles(
 
     })
 
+    # --------------------------------------------------------
+    # Get candles
+    # --------------------------------------------------------
+
     candles = response.get(
-        "candles"
+        "candles",
+        []
     )
 
     if not isinstance(candles, list):
 
         raise RuntimeError(
-            "Deriv returned no candle list"
+            "Deriv returned an invalid candle response for "
+            + symbol
+            + " "
+            + timeframe
         )
 
-    result = []
+    normalized = []
 
-    for item in candles:
+    # --------------------------------------------------------
+    # Normalize candles
+    # --------------------------------------------------------
 
-        if not isinstance(item, dict):
+    for candle in candles:
+
+        if not isinstance(candle, dict):
             continue
 
         try:
 
-            result.append({
+            normalized.append({
 
                 "epoch": int(
-                    item["epoch"]
+                    candle["epoch"]
                 ),
 
                 "open": float(
-                    item["open"]
+                    candle["open"]
                 ),
 
                 "high": float(
-                    item["high"]
+                    candle["high"]
                 ),
 
                 "low": float(
-                    item["low"]
+                    candle["low"]
                 ),
 
                 "close": float(
-                    item["close"]
+                    candle["close"]
                 )
 
             })
@@ -194,7 +273,11 @@ async def get_candles(
 
             continue
 
-    if not result:
+    # --------------------------------------------------------
+    # Make sure we actually received candles
+    # --------------------------------------------------------
+
+    if not normalized:
 
         raise RuntimeError(
             "No valid candles returned for "
@@ -203,4 +286,28 @@ async def get_candles(
             + timeframe
         )
 
-    return result
+    return normalized
+
+
+# ============================================================
+# TEST DERIV CONNECTION
+# ============================================================
+
+async def test_connection():
+
+    response = await deriv_request({
+
+        "time": 1
+
+    })
+
+    return {
+
+        "connected": True,
+
+        "server_time":
+            response.get(
+                "time"
+            )
+
+    }
