@@ -1,16 +1,9 @@
-// ======================================================
-// SYNTHETIC AI SIGNAL ENGINE
-// FRONTEND CONFIGURATION
-// ======================================================
-
-// PUT YOUR PYTHON BACKEND RENDER URL HERE
 const BACKEND_URL =
-    "https://synthetic-ai-bot-v2.onrender.com";
+    "https://YOUR-BACKEND-NAME.onrender.com";
 
+const DERIV_WS =
+    "wss://api.derivws.com/trading/v1/options/ws/public";
 
-// ======================================================
-// Dashboard elements
-// ======================================================
 
 const connection =
     document.getElementById("connection");
@@ -19,9 +12,54 @@ const message =
     document.getElementById("message");
 
 
-// ======================================================
-// Status helpers
-// ======================================================
+const TARGETS = [
+    {
+        key: "V10",
+        name: "Volatility 10 Index"
+    },
+    {
+        key: "V25",
+        name: "Volatility 25 Index"
+    },
+    {
+        key: "V50",
+        name: "Volatility 50 Index"
+    },
+    {
+        key: "V75",
+        name: "Volatility 75 Index"
+    },
+    {
+        key: "V100",
+        name: "Volatility 100 Index"
+    },
+    {
+        key: "STEP",
+        name: "Step Index"
+    },
+    {
+        key: "JUMP10",
+        name: "Jump 10 Index"
+    },
+    {
+        key: "JUMP25",
+        name: "Jump 25 Index"
+    },
+    {
+        key: "JUMP50",
+        name: "Jump 50 Index"
+    },
+    {
+        key: "JUMP75",
+        name: "Jump 75 Index"
+    }
+];
+
+
+let socket = null;
+
+const discoveredMarkets = {};
+
 
 function setConnection(text) {
 
@@ -39,465 +77,334 @@ function setMessage(text) {
 }
 
 
-// ======================================================
-// Test backend
-// ======================================================
+function normalize(text) {
 
-async function testBackend() {
+    return String(text || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
+
+function connectDeriv() {
 
     setConnection(
-        "● CONNECTING TO BACKEND..."
+        "● CONNECTING TO DERIV..."
     );
 
     setMessage(
-        "Checking Python analysis server..."
+        "Opening public market-data connection..."
     );
 
-    try {
 
-        const response =
-            await fetch(
-                `${BACKEND_URL}/health`,
-                {
-                    method: "GET",
-                    cache: "no-store"
-                }
-            );
+    socket =
+        new WebSocket(DERIV_WS);
 
 
-        if (!response.ok) {
-
-            throw new Error(
-                `HTTP ${response.status}`
-            );
-        }
-
-
-        const data =
-            await response.json();
-
-
-        if (
-            data.status ===
-            "healthy"
-        ) {
-
-            setConnection(
-                "● BACKEND ONLINE"
-            );
-
-            setMessage(
-                "Python backend connected successfully."
-            );
-
-            console.log(
-                "BACKEND:",
-                data
-            );
-
-            await loadMarkets();
-
-        } else {
-
-            throw new Error(
-                "Backend returned an unexpected response."
-            );
-        }
-
-    } catch (error) {
-
-        console.error(
-            "BACKEND CONNECTION ERROR:",
-            error
-        );
+    socket.onopen = function() {
 
         setConnection(
-            "● BACKEND CONNECTION FAILED"
+            "● DERIV CONNECTED"
         );
 
         setMessage(
-            "Could not connect to the Render backend."
-        );
-    }
-}
-
-
-// ======================================================
-// Load Deriv markets through backend
-// ======================================================
-
-async function loadMarkets() {
-
-    setMessage(
-        "Requesting synthetic markets..."
-    );
-
-    try {
-
-        const response =
-            await fetch(
-                `${BACKEND_URL}/markets`,
-                {
-                    method: "GET",
-                    cache: "no-store"
-                }
-            );
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                `HTTP ${response.status}`
-            );
-        }
-
-
-        const data =
-            await response.json();
-
-
-        console.log(
-            "MARKET RESPONSE:",
-            data
+            "Connected. Discovering markets..."
         );
 
 
-        if (
-            data.status !==
-            "success"
-        ) {
-
-            throw new Error(
-                data.message ||
-                "Market request failed."
-            );
-        }
-
-
-        const markets =
-            data.markets || [];
-
-
-        setMessage(
-            `${markets.length} markets received from backend.`
+        socket.send(
+            JSON.stringify({
+                active_symbols: "brief",
+                req_id: 1
+            })
         );
+    };
 
 
-        displayMarkets(
-            markets
-        );
+    socket.onmessage =
+        function(event) {
 
+            let data;
 
-    } catch (error) {
+            try {
 
-        console.error(
-            "MARKET ERROR:",
-            error
-        );
+                data =
+                    JSON.parse(event.data);
 
-        setMessage(
-            "Backend is online, but market data is not available yet."
-        );
-    }
-}
+            } catch (error) {
 
+                console.error(
+                    "Invalid Deriv response",
+                    error
+                );
 
-// ======================================================
-// Our 10 target markets
-// ======================================================
-
-const TARGET_MARKETS = {
-
-    V10:
-        "Volatility 10 Index",
-
-    V25:
-        "Volatility 25 Index",
-
-    V50:
-        "Volatility 50 Index",
-
-    V75:
-        "Volatility 75 Index",
-
-    V100:
-        "Volatility 100 Index",
-
-    STEP:
-        "Step Index",
-
-    JUMP10:
-        "Jump 10 Index",
-
-    JUMP25:
-        "Jump 25 Index",
-
-    JUMP50:
-        "Jump 50 Index",
-
-    JUMP75:
-        "Jump 75 Index"
-};
-
-
-// ======================================================
-// Match market names
-// ======================================================
-
-function displayMarkets(markets) {
-
-    let found = 0;
-
-
-    markets.forEach(
-        function(market) {
-
-            const symbol =
-                market.symbol;
-
-            const name =
-                market.name;
-
-
-            if (!symbol || !name) {
                 return;
             }
 
 
-            const normalizedName =
-                name
-                    .trim()
-                    .toLowerCase();
+            console.log(
+                "DERIV RESPONSE:",
+                data
+            );
 
 
-            for (
-                const key in TARGET_MARKETS
+            if (data.error) {
+
+                setMessage(
+                    "Deriv error: " +
+                    data.error.message
+                );
+
+                return;
+            }
+
+
+            if (
+                data.msg_type ===
+                "active_symbols"
             ) {
 
-                const target =
-                    TARGET_MARKETS[key]
-                        .toLowerCase();
+                discoverMarkets(
+                    data.active_symbols || []
+                );
 
-
-                if (
-                    normalizedName ===
-                    target
-                ) {
-
-                    updateMarketCard(
-                        key,
-                        symbol,
-                        name
-                    );
-
-                    found++;
-
-                    console.log(
-                        key,
-                        symbol,
-                        name
-                    );
-                }
+                return;
             }
-        }
+
+
+            if (
+                data.msg_type ===
+                "tick"
+            ) {
+
+                updateTick(
+                    data.tick
+                );
+            }
+        };
+
+
+    socket.onerror =
+        function(error) {
+
+            console.error(
+                "Deriv WebSocket error:",
+                error
+            );
+
+            setConnection(
+                "● DERIV CONNECTION ERROR"
+            );
+
+            setMessage(
+                "The browser could not connect to Deriv."
+            );
+        };
+
+
+    socket.onclose =
+        function(event) {
+
+            console.log(
+                "Deriv closed:",
+                event.code,
+                event.reason
+            );
+
+            setConnection(
+                "● DERIV DISCONNECTED"
+            );
+
+            setMessage(
+                "Deriv connection closed."
+            );
+        };
+}
+
+
+function discoverMarkets(list) {
+
+    console.log(
+        "Total Deriv markets:",
+        list.length
     );
 
 
-    if (found > 0) {
+    for (
+        const item of list
+    ) {
 
-        setMessage(
-            `${found} target synthetic markets identified.`
-        );
-
-        startPriceUpdates();
-
-    } else {
-
-        setMessage(
-            "Backend returned markets, but the target synthetic markets were not matched."
-        );
-    }
-}
+        const symbol =
+            item.underlying_symbol ||
+            item.symbol;
 
 
-// ======================================================
-// Update card
-// ======================================================
-
-function updateMarketCard(
-    key,
-    symbol,
-    name
-) {
-
-    const price =
-        document.getElementById(key);
-
-    const status =
-        document.getElementById(
-            `${key}-status`
-        );
+        const name =
+            item.underlying_symbol_name ||
+            item.display_name;
 
 
-    if (price) {
-
-        price.dataset.symbol =
-            symbol;
-
-        price.dataset.market =
-            name;
-    }
-
-
-    if (status) {
-
-        status.textContent =
-            "● MARKET FOUND";
-    }
-}
-
-
-// ======================================================
-// Get live price from backend
-// ======================================================
-
-async function getPrice(
-    key,
-    symbol
-) {
-
-    try {
-
-        const response =
-            await fetch(
-                `${BACKEND_URL}/tick/${encodeURIComponent(symbol)}`,
-                {
-                    method: "GET",
-                    cache: "no-store"
-                }
-            );
-
-
-        if (!response.ok) {
-            return;
+        if (!symbol || !name) {
+            continue;
         }
 
 
-        const data =
-            await response.json();
+        const marketName =
+            normalize(name);
 
+
+        for (
+            const target of TARGETS
+        ) {
+
+            if (
+                marketName ===
+                normalize(target.name)
+            ) {
+
+                discoveredMarkets[
+                    target.key
+                ] = {
+                    symbol: symbol,
+                    name: name
+                };
+
+
+                console.log(
+                    target.key,
+                    "=>",
+                    symbol,
+                    name
+                );
+            }
+        }
+    }
+
+
+    const found =
+        Object.keys(
+            discoveredMarkets
+        ).length;
+
+
+    setConnection(
+        "● LIVE MARKET DATA"
+    );
+
+
+    setMessage(
+        `${found} of 10 target markets discovered.`
+    );
+
+
+    subscribeToMarkets();
+
+
+    /*
+     * If exact names differ, print all
+     * synthetic markets to the console.
+     */
+
+    if (found < 10) {
+
+        console.log(
+            "Some target markets were not matched."
+        );
+
+        console.log(
+            "Full Deriv market list:",
+            list
+        );
+    }
+}
+
+
+function subscribeToMarkets() {
+
+    if (
+        !socket ||
+        socket.readyState !==
+        WebSocket.OPEN
+    ) {
+        return;
+    }
+
+
+    Object.keys(
+        discoveredMarkets
+    ).forEach(
+        function(key) {
+
+            const market =
+                discoveredMarkets[key];
+
+
+            socket.send(
+                JSON.stringify({
+                    ticks: market.symbol,
+                    subscribe: 1
+                })
+            );
+        }
+    );
+}
+
+
+function updateTick(tick) {
+
+    if (!tick) {
+        return;
+    }
+
+
+    const symbol =
+        tick.symbol;
+
+
+    const quote =
+        tick.quote;
+
+
+    for (
+        const key in discoveredMarkets
+    ) {
 
         if (
-            data.status !==
-            "success"
+            discoveredMarkets[key].symbol ===
+            symbol
         ) {
-            return;
-        }
+
+            const priceElement =
+                document.getElementById(key);
 
 
-        const price =
-            data.data.price;
-
-
-        const priceElement =
-            document.getElementById(key);
-
-
-        const statusElement =
-            document.getElementById(
-                `${key}-status`
-            );
-
-
-        if (priceElement) {
-
-            priceElement.textContent =
-                Number(price).toLocaleString(
-                    undefined,
-                    {
-                        maximumFractionDigits: 4
-                    }
+            const statusElement =
+                document.getElementById(
+                    `${key}-status`
                 );
+
+
+            if (priceElement) {
+
+                priceElement.textContent =
+                    Number(quote)
+                        .toLocaleString(
+                            undefined,
+                            {
+                                maximumFractionDigits: 4
+                            }
+                        );
+            }
+
+
+            if (statusElement) {
+
+                statusElement.textContent =
+                    "● LIVE";
+            }
         }
-
-
-        if (statusElement) {
-
-            statusElement.textContent =
-                "● LIVE PRICE";
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            `Price error ${key}:`,
-            error
-        );
     }
 }
 
 
-// ======================================================
-// Start price updates
-// ======================================================
-
-function startPriceUpdates() {
-
-    Object.keys(TARGET_MARKETS)
-        .forEach(
-            function(key) {
-
-                const priceElement =
-                    document.getElementById(key);
-
-
-                if (
-                    priceElement &&
-                    priceElement.dataset.symbol
-                ) {
-
-                    getPrice(
-                        key,
-                        priceElement.dataset.symbol
-                    );
-                }
-            }
-        );
-
-
-    setInterval(
-        function() {
-
-            Object.keys(TARGET_MARKETS)
-                .forEach(
-                    function(key) {
-
-                        const priceElement =
-                            document.getElementById(key);
-
-
-                        if (
-                            priceElement &&
-                            priceElement.dataset.symbol
-                        ) {
-
-                            getPrice(
-                                key,
-                                priceElement.dataset.symbol
-                            );
-                        }
-                    }
-                );
-
-        },
-        5000
-    );
-}
-
-
-// ======================================================
-// START APPLICATION
-// ======================================================
-
-testBackend();
+connectDeriv();
