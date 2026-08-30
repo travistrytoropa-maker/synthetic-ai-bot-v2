@@ -161,3 +161,26 @@ async def analyze_test():
         "test": True,
         "analysis": result
     }
+@app.get("/analyze-market/{symbol}")
+async def analyze_market_endpoint(
+    symbol: str
+):
+
+    try:
+
+        result = await analyze_market(
+            symbol
+        )
+
+        return {
+            "status": "success",
+            "result": result
+        }
+
+    except Exception as error:
+
+        return {
+            "status": "error",
+            "symbol": symbol.upper(),
+            "message": str(error)
+        }
