@@ -51,25 +51,30 @@ async def deriv_request(request):
 
             return data
 
-
 async def get_markets():
 
     response = await deriv_request({
-
         "active_symbols": "full",
-
         "product_type": "basic"
-
     })
 
-    symbols = response.get(
-        "active_symbols"
-    )
+    print("===== DERIV MARKET RESPONSE =====")
+    print(response)
+    print("=================================")
+
+    symbols = response.get("active_symbols")
+
+    if symbols is None:
+
+        raise RuntimeError(
+            "Deriv response does not contain active_symbols"
+        )
 
     if not isinstance(symbols, list):
 
         raise RuntimeError(
-            "Deriv returned no active_symbols list"
+            "active_symbols is not a list. "
+            + str(type(symbols))
         )
 
     markets = []
@@ -84,7 +89,7 @@ async def get_markets():
         if not symbol:
             continue
 
-        display_name = (
+        name = (
             item.get("display_name")
             or item.get("name")
             or symbol
@@ -92,11 +97,15 @@ async def get_markets():
 
         markets.append({
             "symbol": str(symbol),
-            "name": str(display_name)
+            "name": str(name)
         })
 
-    return markets
+    print(
+        "DERIV SYMBOLS FOUND:",
+        len(markets)
+    )
 
+    return markets
 
 async def get_candles(
     symbol,
