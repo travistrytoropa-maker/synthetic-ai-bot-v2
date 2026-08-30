@@ -1,16 +1,16 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from deriv_api import get_active_symbols, get_tick
-from candle_engine import (
-    get_historical_candles,
-    get_multi_timeframe_data
+from deriv_api import (
+    get_active_symbols,
+    get_tick,
+    get_candles
 )
 
 
 app = FastAPI(
     title="Synthetic AI Signal Engine",
-    version="2.0.0"
+    version="2.1.0"
 )
 
 
@@ -19,7 +19,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 
@@ -29,7 +29,7 @@ async def home():
     return {
         "status": "online",
         "message": "Synthetic AI Signal Engine is running",
-        "version": "2.0.0"
+        "version": "2.1.0"
     }
 
 
@@ -46,20 +46,19 @@ async def markets():
 
     try:
 
-        symbols = await get_active_symbols()
+        markets = await get_active_symbols()
 
         return {
             "status": "success",
-            "count": len(symbols),
-            "markets": symbols
+            "count": len(markets),
+            "markets": markets
         }
 
     except Exception as error:
 
         return {
             "status": "error",
-            "message": str(error),
-            "markets": []
+            "message": str(error)
         }
 
 
@@ -68,13 +67,13 @@ async def tick(symbol: str):
 
     try:
 
-        data = await get_tick(
+        result = await get_tick(
             symbol.upper()
         )
 
         return {
             "status": "success",
-            "data": data
+            "data": result
         }
 
     except Exception as error:
@@ -92,18 +91,33 @@ async def candles(
     timeframe: str
 ):
 
+    timeframe = timeframe.upper()
+
+    timeframes = {
+        "M5": 300,
+        "M15": 900,
+        "H1": 3600
+    }
+
+    if timeframe not in timeframes:
+
+        return {
+            "status": "error",
+            "message": "Use M5, M15 or H1"
+        }
+
     try:
 
-        data = await get_historical_candles(
+        data = await get_candles(
             symbol=symbol.upper(),
-            timeframe=timeframe.upper(),
+            granularity=timeframes[timeframe],
             count=200
         )
 
         return {
             "status": "success",
             "symbol": symbol.upper(),
-            "timeframe": timeframe.upper(),
+            "timeframe": timeframe,
             "count": len(data),
             "candles": data
         }
@@ -113,35 +127,6 @@ async def candles(
         return {
             "status": "error",
             "symbol": symbol.upper(),
-            "timeframe": timeframe.upper(),
-            "message": str(error),
-            "count": 0,
-            "candles": []
-        }
-
-
-@app.get("/analysis-data/{symbol}")
-async def analysis_data(
-    symbol: str
-):
-
-    try:
-
-        data = await get_multi_timeframe_data(
-            symbol=symbol.upper(),
-            count=200
-        )
-
-        return {
-            "status": "success",
-            "symbol": symbol.upper(),
-            "timeframes": data
-        }
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "symbol": symbol.upper(),
+            "timeframe": timeframe,
             "message": str(error)
         }
