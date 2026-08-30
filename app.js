@@ -1,5 +1,5 @@
 const BACKEND_URL =
-    "https://YOUR-BACKEND-NAME.onrender.com";
+    "https://synthetic-ai-bot-v2.onrender.com";
 
 const DERIV_WS =
     "wss://api.derivws.com/trading/v1/options/ws/public";
