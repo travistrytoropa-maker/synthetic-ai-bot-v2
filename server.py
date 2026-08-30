@@ -54,17 +54,16 @@ async def health():
 @app.get("/markets")
 async def markets():
 
-    print("===== /markets ENDPOINT CALLED =====", flush=True)
-
     try:
 
         data = await get_markets()
 
-        print(
-            "===== MARKET COUNT =====",
-            len(data),
-            flush=True
-        )
+        if isinstance(data, dict) and data.get("_diagnostic"):
+
+            return {
+                "status": "diagnostic",
+                **data
+            }
 
         return {
             "status": "success",
@@ -73,12 +72,6 @@ async def markets():
         }
 
     except Exception as error:
-
-        print(
-            "===== MARKET ERROR =====",
-            repr(error),
-            flush=True
-        )
 
         return {
             "status": "error",
