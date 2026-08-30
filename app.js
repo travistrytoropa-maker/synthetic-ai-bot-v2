@@ -270,12 +270,12 @@ function discoverMarkets(list) {
                 };
 
 
-                console.log(
-                    target.key,
-                    "=>",
-                    symbol,
-                    name
-                );
+               console.log(
+    "DISCOVERED MARKET:",
+    target.name,
+    "SYMBOL:",
+    symbol
+);
             }
         }
     }
