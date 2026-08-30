@@ -4,7 +4,7 @@ import websockets
 DERIV_URL = "wss://ws.binaryws.com/websockets/v3"
 
 
-async def deriv_request(request):
+async def request_deriv(payload):
     try:
         async with websockets.connect(
             DERIV_URL,
@@ -13,76 +13,46 @@ async def deriv_request(request):
             close_timeout=10
         ) as ws:
 
-            await ws.send(json.dumps(request))
+            await ws.send(json.dumps(payload))
 
             while True:
-                raw = await ws.recv()
-                response = json.loads(raw)
+                message = json.loads(await ws.recv())
 
-                if "error" in response:
-                    error = response["error"]
-
+                if "error" in message:
+                    error = message["error"]
                     raise RuntimeError(
-                        error.get(
-                            "message",
-                            "Unknown Deriv API error"
-                        )
+                        error.get("message", "Deriv API error")
                     )
 
-                return response
+                return message
 
-    except Exception as error:
+    except Exception as e:
         raise RuntimeError(
-            f"Deriv connection error: {error}"
+            f"Deriv connection error: {str(e)}"
         )
 
 
 async def get_active_symbols():
 
-    response = await deriv_request({
+    response = await request_deriv({
         "active_symbols": "brief",
+        "product_type": "basic",
         "req_id": 1
     })
 
-    symbols = response.get(
-        "active_symbols",
-        []
-    )
+    symbols = response.get("active_symbols")
 
-    result = []
-
-    for item in symbols:
-
-        symbol = item.get(
-            "underlying_symbol"
+    if symbols is None:
+        raise RuntimeError(
+            "Deriv did not return active_symbols"
         )
 
-        name = item.get(
-            "underlying_symbol_name"
-        )
-
-        if symbol:
-
-            result.append({
-                "symbol": symbol,
-                "name": name,
-                "type": item.get(
-                    "underlying_symbol_type"
-                ),
-                "market": item.get(
-                    "market"
-                ),
-                "submarket": item.get(
-                    "submarket"
-                )
-            })
-
-    return result
+    return symbols
 
 
 async def get_tick(symbol):
 
-    response = await deriv_request({
+    response = await request_deriv({
         "ticks": symbol,
         "subscribe": 0,
         "req_id": 2
@@ -90,9 +60,9 @@ async def get_tick(symbol):
 
     tick = response.get("tick")
 
-    if not tick:
+    if tick is None:
         raise RuntimeError(
-            f"No tick returned for {symbol}"
+            f"Deriv did not return a tick for {symbol}"
         )
 
     return {
@@ -102,39 +72,22 @@ async def get_tick(symbol):
     }
 
 
-async def get_candles(
-    symbol,
-    granularity,
-    count=200
-):
+async def get_candles(symbol, granularity, count=100):
 
-    response = await deriv_request({
+    response = await request_deriv({
         "ticks_history": symbol,
-        "end": "latest",
-        "count": count,
         "style": "candles",
         "granularity": granularity,
+        "count": count,
+        "end": "latest",
         "req_id": 3
     })
 
-    candles = response.get(
-        "candles",
-        []
-    )
+    candles = response.get("candles")
 
-    if not candles:
-
+    if candles is None:
         raise RuntimeError(
-            f"No candles returned for {symbol}"
+            f"Deriv did not return candles for {symbol}"
         )
 
-    return [
-        {
-            "epoch": int(candle["epoch"]),
-            "open": float(candle["open"]),
-            "high": float(candle["high"]),
-            "low": float(candle["low"]),
-            "close": float(candle["close"])
-        }
-        for candle in candles
-    ]
+    return candles
