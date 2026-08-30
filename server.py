@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from deriv_api import deriv_connection_info
@@ -6,8 +7,9 @@ from deriv_api import deriv_connection_info
 
 app = FastAPI(
     title="Synthetic AI Signal Engine",
-    version="3.0.0"
+    version="3.1.0"
 )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,11 +21,7 @@ app.add_middleware(
 
 @app.get("/")
 async def home():
-    return {
-        "status": "online",
-        "message": "Synthetic AI Signal Engine is running",
-        "version": "3.0.0"
-    }
+    return FileResponse("index.html")
 
 
 @app.get("/health")
