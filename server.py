@@ -213,3 +213,30 @@ async def analyze_market_endpoint(
             "symbol": symbol.upper(),
             "message": str(error)
         }
+@app.post("/pro-analyze")
+async def pro_analyze_endpoint(payload: dict):
+
+    try:
+
+        m5 = payload.get("M5", [])
+        m15 = payload.get("M15", [])
+        h1 = payload.get("H1", [])
+
+        result = pro_analysis(
+            m5,
+            m15,
+            h1
+        )
+
+        return {
+            "status": "success",
+            "analysis": result
+        }
+
+    except Exception as error:
+
+        return {
+            "status": "error",
+            "error_type": type(error).__name__,
+            "message": str(error)
+        }
