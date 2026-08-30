@@ -128,3 +128,35 @@ async def analyze_market(payload: dict):
             "status": "error",
             "message": str(error)
         }
+@app.get("/analyze-test")
+async def analyze_test():
+
+    candles = []
+
+    price = 100.0
+
+    for i in range(50):
+
+        candles.append({
+            "epoch": i,
+            "open": price,
+            "high": price + 1.0,
+            "low": price - 0.3,
+            "close": price + 0.8
+        })
+
+        price += 0.8
+
+
+    result = multi_timeframe_analysis(
+        candles,
+        candles,
+        candles
+    )
+
+
+    return {
+        "status": "success",
+        "test": True,
+        "analysis": result
+    }
