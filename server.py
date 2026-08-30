@@ -1,3 +1,4 @@
+from market_analyzer import analyze_market
 from analysis_engine import multi_timeframe_analysis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
