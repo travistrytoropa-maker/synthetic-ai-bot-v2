@@ -179,6 +179,34 @@ async def analyze_market_endpoint(
 
     except Exception as error:
 
+        import traceback
+
+        print("================================")
+        print("ANALYSIS ERROR")
+        print("SYMBOL:", symbol)
+        print("ERROR:", repr(error))
+        traceback.print_exc()
+        print("================================")
+
+        return {
+            "status": "error",
+            "symbol": symbol.upper(),
+            "error_type": type(error).__name__,
+            "message": str(error)
+        }
+    try:
+
+        result = await analyze_market(
+            symbol
+        )
+
+        return {
+            "status": "success",
+            "result": result
+        }
+
+    except Exception as error:
+
         return {
             "status": "error",
             "symbol": symbol.upper(),
