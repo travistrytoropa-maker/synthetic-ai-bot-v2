@@ -1,61 +1,96 @@
 const DERIV_URL =
-    "wss://api.derivws.com/trading/v1/options/ws/public";
+    "wss://ws.binaryws.com/websockets/v3";
 
-const connectionElement =
-    document.getElementById("connection");
+let socket = null;
 
-const messageElement =
-    document.getElementById("message");
+const markets = {};
 
-
-// --------------------------------------------------
-// Markets we want to find
-// --------------------------------------------------
-
-const TARGET_MARKETS = [
-    "Volatility 10 Index",
-    "Volatility 25 Index",
-    "Volatility 50 Index",
-    "Volatility 75 Index",
-    "Volatility 100 Index",
-    "Step Index",
-    "Jump 10 Index",
-    "Jump 25 Index",
-    "Jump 50 Index",
-    "Jump 75 Index"
+const TARGETS = [
+    {
+        key: "V10",
+        names: ["Volatility 10 Index"]
+    },
+    {
+        key: "V25",
+        names: ["Volatility 25 Index"]
+    },
+    {
+        key: "V50",
+        names: ["Volatility 50 Index"]
+    },
+    {
+        key: "V75",
+        names: ["Volatility 75 Index"]
+    },
+    {
+        key: "V100",
+        names: ["Volatility 100 Index"]
+    },
+    {
+        key: "STEP",
+        names: ["Step Index"]
+    },
+    {
+        key: "JUMP10",
+        names: ["Jump 10 Index"]
+    },
+    {
+        key: "JUMP25",
+        names: ["Jump 25 Index"]
+    },
+    {
+        key: "JUMP50",
+        names: ["Jump 50 Index"]
+    },
+    {
+        key: "JUMP75",
+        names: ["Jump 75 Index"]
+    }
 ];
 
 
-// --------------------------------------------------
-// Create WebSocket connection
-// --------------------------------------------------
+function setConnection(text) {
 
-let socket = null;
+    const element =
+        document.getElementById("connection");
+
+    if (element) {
+        element.textContent = text;
+    }
+}
+
+
+function setMessage(text) {
+
+    const element =
+        document.getElementById("message");
+
+    if (element) {
+        element.textContent = text;
+    }
+}
 
 
 function connectDeriv() {
 
-    connectionElement.textContent =
-        "● CONNECTING TO DERIV...";
-
+    setConnection("● CONNECTING TO DERIV...");
 
     socket = new WebSocket(DERIV_URL);
 
 
     socket.onopen = function () {
 
-        connectionElement.textContent =
-            "● CONNECTED TO DERIV";
+        setConnection("● CONNECTED TO DERIV");
 
-        messageElement.textContent =
-            "Connected. Finding synthetic markets...";
-
+        setMessage(
+            "Connected. Discovering synthetic markets..."
+        );
 
         requestMarkets();
     };
 
 
-    socket.onmessage = function (event) {
+    socket.onmessage = function(event) {
 
         try {
 
@@ -67,36 +102,35 @@ function connectDeriv() {
         } catch (error) {
 
             console.error(
-                "Invalid Deriv message:",
+                "Message parsing error:",
                 error
             );
         }
     };
 
 
-    socket.onerror = function (error) {
+    socket.onerror = function(error) {
 
         console.error(
             "Deriv WebSocket error:",
             error
         );
 
-        connectionElement.textContent =
-            "● CONNECTION ERROR";
+        setConnection("● DERIV CONNECTION ERROR");
 
-        messageElement.textContent =
-            "Could not connect to Deriv.";
+        setMessage(
+            "Unable to connect to Deriv market data."
+        );
     };
 
 
-    socket.onclose = function () {
+    socket.onclose = function() {
 
-        connectionElement.textContent =
-            "● DISCONNECTED";
+        setConnection("● DISCONNECTED");
 
-        messageElement.textContent =
-            "Connection closed. Reconnecting...";
-
+        setMessage(
+            "Connection closed. Reconnecting..."
+        );
 
         setTimeout(
             connectDeriv,
@@ -105,10 +139,6 @@ function connectDeriv() {
     };
 }
 
-
-// --------------------------------------------------
-// Request available markets
-// --------------------------------------------------
 
 function requestMarkets() {
 
@@ -120,37 +150,45 @@ function requestMarkets() {
     }
 
 
+    /*
+     * IMPORTANT:
+     * Current Deriv API uses active_symbols
+     * without the old product_type parameter.
+     */
+
     socket.send(
         JSON.stringify({
-
             active_symbols: "brief",
-
-            product_type: "basic",
-
             req_id: 1
-
         })
     );
 }
 
 
-// --------------------------------------------------
-// Handle incoming messages
-// --------------------------------------------------
-
 function handleMessage(data) {
 
+    if (data.error) {
 
-    // -------------------------------
-    // Active markets
-    // -------------------------------
+        console.error(
+            "Deriv API error:",
+            data.error
+        );
+
+        setMessage(
+            data.error.message ||
+            "Deriv returned an error."
+        );
+
+        return;
+    }
+
 
     if (
         data.msg_type ===
         "active_symbols"
     ) {
 
-        processMarkets(
+        handleMarkets(
             data.active_symbols || []
         );
 
@@ -158,110 +196,187 @@ function handleMessage(data) {
     }
 
 
-    // -------------------------------
-    // Live tick
-    // -------------------------------
-
     if (
         data.msg_type ===
         "tick"
     ) {
 
-        processTick(
+        handleTick(
             data.tick
         );
 
         return;
     }
-
-
-    // -------------------------------
-    // API error
-    // -------------------------------
-
-    if (data.error) {
-
-        console.error(
-            "Deriv error:",
-            data.error
-        );
-
-        messageElement.textContent =
-            data.error.message ||
-            "Deriv API error.";
-    }
 }
 
 
-// --------------------------------------------------
-// Find our 10 markets
-// --------------------------------------------------
+function normalizeName(name) {
 
-function processMarkets(markets) {
-
-    const foundMarkets = [];
-
-
-    markets.forEach(
-        function (market) {
-
-            const name =
-                (
-                    market.display_name ||
-                    market.underlying_symbol_name ||
-                    ""
-                ).toLowerCase();
+    return String(name || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
 
 
-            TARGET_MARKETS.forEach(
-                function (target) {
+function handleMarkets(symbolList) {
 
-                    if (
-                        name ===
-                        target.toLowerCase()
-                    ) {
+    console.log(
+        "Deriv returned",
+        symbolList.length,
+        "markets"
+    );
 
-                        foundMarkets.push({
-                            target: target,
-                            symbol:
-                                market.underlying_symbol
-                        });
+
+    let found = 0;
+
+
+    symbolList.forEach(function(item) {
+
+        const symbol =
+            item.underlying_symbol;
+
+        const name =
+            item.underlying_symbol_name;
+
+
+        if (!symbol || !name) {
+            return;
+        }
+
+
+        const normalized =
+            normalizeName(name);
+
+
+        TARGETS.forEach(function(target) {
+
+            const matches =
+                target.names.some(
+                    function(targetName) {
+
+                        return (
+                            normalizeName(
+                                targetName
+                            ) === normalized
+                        );
 
                     }
+                );
 
-                }
-            );
 
-        }
-    );
+            if (matches) {
+
+                markets[target.key] = {
+                    symbol: symbol,
+                    name: name
+                };
+
+                found++;
+
+                console.log(
+                    target.key,
+                    "→",
+                    symbol,
+                    name
+                );
+            }
+
+        });
+
+    });
 
 
     console.log(
         "Target markets found:",
-        foundMarkets
+        markets
     );
 
 
-    if (foundMarkets.length === 0) {
+    /*
+     * If exact names don't match,
+     * search using keywords.
+     */
 
-        messageElement.textContent =
-            "Deriv connected, but no target synthetic markets were found.";
+    if (found === 0) {
+
+        console.warn(
+            "Exact market names not found."
+        );
+
+        searchSyntheticMarkets(
+            symbolList
+        );
 
         return;
     }
 
 
-    messageElement.textContent =
-        `${foundMarkets.length} synthetic markets connected.`;
+    subscribeToMarkets();
 
 
-    // Subscribe to every market we found
+    setMessage(
+        `${Object.keys(markets).length} target markets found.`
+    );
+}
 
-    foundMarkets.forEach(
-        function (market) {
 
-            subscribeToTick(
-                market.symbol
+function searchSyntheticMarkets(symbolList) {
+
+    symbolList.forEach(function(item) {
+
+        const name =
+            normalizeName(
+                item.underlying_symbol_name
+            );
+
+        const symbol =
+            item.underlying_symbol;
+
+
+        if (!symbol || !name) {
+            return;
+        }
+
+
+        if (
+            name.includes("volatility") ||
+            name.includes("step") ||
+            name.includes("jump")
+        ) {
+
+            console.log(
+                "Synthetic market:",
+                name,
+                "→",
+                symbol
+            );
+        }
+
+    });
+
+
+    setMessage(
+        "Synthetic markets were received. Check the browser console for their exact names and symbols."
+    );
+}
+
+
+function subscribeToMarkets() {
+
+    Object.keys(markets).forEach(
+        function(key) {
+
+            const market =
+                markets[key];
+
+
+            socket.send(
+                JSON.stringify({
+                    ticks: market.symbol,
+                    subscribe: 1,
+                    req_id: 100 + key.length
+                })
             );
 
         }
@@ -269,31 +384,7 @@ function processMarkets(markets) {
 }
 
 
-// --------------------------------------------------
-// Subscribe to live price
-// --------------------------------------------------
-
-function subscribeToTick(symbol) {
-
-    socket.send(
-        JSON.stringify({
-
-            ticks: symbol,
-
-            subscribe: 1,
-
-            req_id: 100
-
-        })
-    );
-}
-
-
-// --------------------------------------------------
-// Process live price
-// --------------------------------------------------
-
-function processTick(tick) {
+function handleTick(tick) {
 
     if (!tick) {
         return;
@@ -307,98 +398,93 @@ function processTick(tick) {
         tick.quote;
 
 
-    const marketElement =
-        findMarketElement(symbol);
+    let marketKey = null;
 
 
-    if (!marketElement) {
+    Object.keys(markets).forEach(
+        function(key) {
+
+            if (
+                markets[key].symbol ===
+                symbol
+            ) {
+
+                marketKey = key;
+            }
+
+        }
+    );
+
+
+    if (!marketKey) {
         return;
     }
 
 
-    marketElement.price.textContent =
-        formatPrice(price);
-
-
-    marketElement.status.textContent =
-        "● LIVE";
+    updatePrice(
+        marketKey,
+        price
+    );
 }
 
 
-// --------------------------------------------------
-// Find dashboard card by symbol
-// --------------------------------------------------
+function updatePrice(key, price) {
 
-function findMarketElement(symbol) {
+    const priceElement =
+        document.getElementById(key);
 
-    const cards =
-        document.querySelectorAll(
-            ".card"
+
+    const statusElement =
+        document.getElementById(
+            `${key}-status`
         );
 
 
-    for (
-        const card of cards
-    ) {
+    if (priceElement) {
 
-        const priceElement =
-            card.querySelector(
-                ".price"
-            );
+        priceElement.textContent =
+            formatPrice(price);
 
-
-        const statusElement =
-            card.querySelector(
-                ".status"
-            );
-
-
-        if (
-            priceElement &&
-            statusElement &&
-            priceElement.dataset.symbol ===
-            symbol
-        ) {
-
-            return {
-                price: priceElement,
-                status: statusElement
-            };
-        }
+        priceElement.dataset.symbol =
+            markets[key].symbol;
     }
 
 
-    return null;
+    if (statusElement) {
+
+        statusElement.textContent =
+            "● LIVE";
+    }
 }
 
-
-// --------------------------------------------------
-// Format price
-// --------------------------------------------------
 
 function formatPrice(price) {
 
     if (
-        price === undefined ||
-        price === null
+        price === null ||
+        price === undefined
     ) {
 
         return "--";
     }
 
 
-    return Number(price)
-        .toLocaleString(
-            undefined,
-            {
-                maximumFractionDigits: 4
-            }
-        );
+    const number =
+        Number(price);
+
+
+    if (Number.isNaN(number)) {
+        return "--";
+    }
+
+
+    return number.toLocaleString(
+        undefined,
+        {
+            maximumFractionDigits: 4
+        }
+    );
 }
 
-
-// --------------------------------------------------
-// Start
-// --------------------------------------------------
 
 connectDeriv();
