@@ -1,3 +1,4 @@
+from pro_analysis_engine import pro_analysis
 from market_analyzer import analyze_market
 from analysis_engine import multi_timeframe_analysis
 from fastapi import FastAPI
