@@ -1,107 +1,98 @@
 import json
-import asyncio
 import websockets
 
+DERIV_URL = "wss://ws.binaryws.com/websockets/v3"
 
-DERIV_WS_URL = "wss://ws.binaryws.com/websockets/v3"
 
-
-async def connect_deriv():
+async def deriv_request(request):
     try:
-        websocket = await websockets.connect(
-            DERIV_WS_URL,
+        async with websockets.connect(
+            DERIV_URL,
             ping_interval=20,
             ping_timeout=20,
-            close_timeout=10,
-            open_timeout=20
-        )
+            close_timeout=10
+        ) as ws:
 
-        return websocket
+            await ws.send(json.dumps(request))
+
+            while True:
+                raw = await ws.recv()
+                response = json.loads(raw)
+
+                if "error" in response:
+                    error = response["error"]
+
+                    raise RuntimeError(
+                        error.get(
+                            "message",
+                            "Unknown Deriv API error"
+                        )
+                    )
+
+                return response
 
     except Exception as error:
         raise RuntimeError(
-            f"Could not connect to Deriv: {str(error)}"
+            f"Deriv connection error: {error}"
         )
-
-
-async def send_request(request):
-    websocket = None
-
-    try:
-        websocket = await connect_deriv()
-
-        await websocket.send(
-            json.dumps(request)
-        )
-
-        while True:
-
-            response = await asyncio.wait_for(
-                websocket.recv(),
-                timeout=30
-            )
-
-            data = json.loads(response)
-
-            if "error" in data:
-
-                error_message = data["error"].get(
-                    "message",
-                    "Unknown Deriv API error"
-                )
-
-                raise RuntimeError(error_message)
-
-            return data
-
-    except asyncio.TimeoutError:
-
-        raise RuntimeError(
-            "Deriv request timed out"
-        )
-
-    except Exception as error:
-
-        raise RuntimeError(str(error))
-
-    finally:
-
-        if websocket is not None:
-
-            try:
-                await websocket.close()
-
-            except Exception:
-                pass
 
 
 async def get_active_symbols():
 
-    data = await send_request({
+    response = await deriv_request({
         "active_symbols": "brief",
         "req_id": 1
     })
 
-    return data.get(
+    symbols = response.get(
         "active_symbols",
         []
     )
 
+    result = []
+
+    for item in symbols:
+
+        symbol = item.get(
+            "underlying_symbol"
+        )
+
+        name = item.get(
+            "underlying_symbol_name"
+        )
+
+        if symbol:
+
+            result.append({
+                "symbol": symbol,
+                "name": name,
+                "type": item.get(
+                    "underlying_symbol_type"
+                ),
+                "market": item.get(
+                    "market"
+                ),
+                "submarket": item.get(
+                    "submarket"
+                )
+            })
+
+    return result
+
 
 async def get_tick(symbol):
 
-    data = await send_request({
+    response = await deriv_request({
         "ticks": symbol,
         "subscribe": 0,
         "req_id": 2
     })
 
-    tick = data.get("tick")
+    tick = response.get("tick")
 
     if not tick:
-
         raise RuntimeError(
-            f"No tick data received for {symbol}"
+            f"No tick returned for {symbol}"
         )
 
     return {
@@ -117,27 +108,33 @@ async def get_candles(
     count=200
 ):
 
-    if count < 10:
-        count = 10
-
-    if count > 1000:
-        count = 1000
-
-    data = await send_request({
+    response = await deriv_request({
         "ticks_history": symbol,
+        "end": "latest",
+        "count": count,
         "style": "candles",
         "granularity": granularity,
-        "count": count,
-        "end": "latest",
         "req_id": 3
     })
 
-    candles = data.get("candles", [])
+    candles = response.get(
+        "candles",
+        []
+    )
 
     if not candles:
 
         raise RuntimeError(
-            f"No candle data received for {symbol}"
+            f"No candles returned for {symbol}"
         )
 
-    return candles
+    return [
+        {
+            "epoch": int(candle["epoch"]),
+            "open": float(candle["open"]),
+            "high": float(candle["high"]),
+            "low": float(candle["low"]),
+            "close": float(candle["close"])
+        }
+        for candle in candles
+    ]
