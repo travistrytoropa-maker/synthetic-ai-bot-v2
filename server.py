@@ -1,38 +1,46 @@
-from market_scanner import scan_markets
-from market_scanner import scan_market
-from pro_analysis_engine import pro_analysis
-from market_analyzer import analyze_market
-from analysis_engine import multi_timeframe_analysis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from deriv_api import (
-    get_candles,
-    candle_stats
+    get_markets,
+    get_candles
+)
+
+from market_analyzer import (
+    analyze_market
+)
+
+from market_scanner import (
+    scan_markets
 )
 
 
 app = FastAPI(
-    title="Synthetic AI Signal Engine",
-    version="6.0.0"
+    title="Synthetic AI Engine",
+    version="1.0"
 )
 
 
 app.add_middleware(
     CORSMiddleware,
+
     allow_origins=["*"],
+
+    allow_credentials=False,
+
     allow_methods=["*"],
+
     allow_headers=["*"]
 )
 
 
 @app.get("/")
-async def home():
+async def root():
 
     return {
         "status": "online",
-        "service": "Synthetic AI Signal Engine",
-        "version": "6.0.0"
+        "service":
+            "Synthetic AI Engine"
     }
 
 
@@ -44,126 +52,63 @@ async def health():
     }
 
 
-@app.get(
-    "/candles/{symbol}/{timeframe}"
-)
+@app.get("/markets")
+async def markets():
+
+    try:
+
+        data = await get_markets()
+
+        return {
+            "status": "success",
+            "count": len(data),
+            "markets": data
+        }
+
+    except Exception as error:
+
+        return {
+            "status": "error",
+            "error_type":
+                type(error).__name__,
+            "message": str(error)
+        }
+
+
+@app.get("/candles/{symbol}/{timeframe}")
 async def candles(
     symbol: str,
     timeframe: str
 ):
 
-    timeframe = timeframe.upper()
-
-    if timeframe not in [
-        "M5",
-        "M15",
-        "H1"
-    ]:
-
-        return {
-            "status": "error",
-            "message":
-                "Use M5, M15 or H1."
-        }
-
     try:
 
         data = await get_candles(
-            symbol.upper(),
-            timeframe,
+            symbol,
+            timeframe.upper(),
             200
         )
 
         return {
             "status": "success",
-            "symbol": symbol.upper(),
-            "timeframe": timeframe,
+            "symbol":
+                symbol.upper(),
+            "timeframe":
+                timeframe.upper(),
             "count": len(data),
-            "candles": data,
-            "statistics":
-                candle_stats(data)
+            "candles": data
         }
 
     except Exception as error:
 
         return {
             "status": "error",
-            "symbol": symbol.upper(),
-            "timeframe": timeframe,
+            "error_type":
+                type(error).__name__,
             "message": str(error)
         }
-@app.post("/analyze")
-async def analyze_market(payload: dict):
-
-    try:
-
-        m5 = payload.get(
-            "M5",
-            []
-        )
-
-        m15 = payload.get(
-            "M15",
-            []
-        )
-
-        h1 = payload.get(
-            "H1",
-            []
-        )
 
 
-        result = multi_timeframe_analysis(
-            m5,
-            m15,
-            h1
-        )
-
-
-        return {
-            "status": "success",
-            "analysis": result
-        }
-
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "message": str(error)
-        }
-@app.get("/analyze-test")
-async def analyze_test():
-
-    candles = []
-
-    price = 100.0
-
-    for i in range(50):
-
-        candles.append({
-            "epoch": i,
-            "open": price,
-            "high": price + 1.0,
-            "low": price - 0.3,
-            "close": price + 0.8
-        })
-
-        price += 0.8
-
-
-    result = multi_timeframe_analysis(
-        candles,
-        candles,
-        candles
-    )
-
-
-    return {
-        "status": "success",
-        "test": True,
-        "analysis": result
-    }
 @app.get("/analyze-market/{symbol}")
 async def analyze_market_endpoint(
     symbol: str
@@ -182,92 +127,20 @@ async def analyze_market_endpoint(
 
     except Exception as error:
 
-        import traceback
-
-        print("================================")
-        print("ANALYSIS ERROR")
-        print("SYMBOL:", symbol)
-        print("ERROR:", repr(error))
-        traceback.print_exc()
-        print("================================")
-
         return {
             "status": "error",
-            "symbol": symbol.upper(),
-            "error_type": type(error).__name__,
+            "symbol":
+                symbol.upper(),
+            "error_type":
+                type(error).__name__,
             "message": str(error)
         }
-    try:
 
-        result = await analyze_market(
-            symbol
-        )
 
-        return {
-            "status": "success",
-            "result": result
-        }
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "symbol": symbol.upper(),
-            "message": str(error)
-        }
-@app.post("/pro-analyze")
-async def pro_analyze_endpoint(payload: dict):
-
-    try:
-
-        m5 = payload.get("M5", [])
-        m15 = payload.get("M15", [])
-        h1 = payload.get("H1", [])
-
-        result = pro_analysis(
-            m5,
-            m15,
-            h1
-        )
-
-        return {
-            "status": "success",
-            "analysis": result
-        }
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "error_type": type(error).__name__,
-            "message": str(error)
-        }
-@app.get("/pro-market/{symbol}")
-async def pro_market(symbol: str):
-
-    try:
-
-        result = await scan_market(symbol)
-
-        return {
-            "status": "success",
-            "result": result
-        }
-
-    except Exception as error:
-
-        import traceback
-
-        traceback.print_exc()
-
-        return {
-            "status": "error",
-            "symbol": symbol.upper(),
-            "error_type": type(error).__name__,
-            "message": str(error)
-        }
 @app.post("/scan-markets")
-async def scan_markets_endpoint(payload: dict):
+async def scan_markets_endpoint(
+    payload: dict
+):
 
     try:
 
@@ -276,16 +149,15 @@ async def scan_markets_endpoint(payload: dict):
             []
         )
 
-        if not isinstance(markets, list):
-            return {
-                "status": "error",
-                "message": "markets must be a list"
-            }
+        if not isinstance(
+            markets,
+            list
+        ):
 
-        if len(markets) == 0:
             return {
                 "status": "error",
-                "message": "No markets supplied"
+                "message":
+                    "markets must be a list"
             }
 
         results = await scan_markets(
@@ -300,11 +172,9 @@ async def scan_markets_endpoint(payload: dict):
 
     except Exception as error:
 
-        import traceback
-        traceback.print_exc()
-
         return {
             "status": "error",
-            "error_type": type(error).__name__,
+            "error_type":
+                type(error).__name__,
             "message": str(error)
         }
