@@ -1,16 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
-from deriv_api import (
-    get_active_symbols,
-    get_tick,
-    get_candles
-)
+from deriv_api import deriv_connection_info
 
 
 app = FastAPI(
     title="Synthetic AI Signal Engine",
-    version="5.0.0"
+    version="5.1.0"
 )
 
 
@@ -24,98 +21,27 @@ app.add_middleware(
 
 @app.get("/")
 async def home():
-
-    return {
-        "status": "online",
-        "service": "Synthetic AI Signal Engine",
-        "version": "5.0.0"
-    }
+    return FileResponse("index.html")
 
 
 @app.get("/health")
 async def health():
-
     return {
         "status": "healthy"
     }
 
 
+@app.get("/deriv")
+async def deriv():
+    return deriv_connection_info()
+
+
 @app.get("/markets")
 async def markets():
-
-    try:
-
-        data = await get_active_symbols()
-
-        return {
-            "status": "success",
-            "data": data
-        }
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "message": str(error)
-        }
-
-
-@app.get("/tick/{symbol}")
-async def tick(symbol: str):
-
-    try:
-
-        data = await get_tick(
-            symbol.upper()
+    return {
+        "status": "frontend_required",
+        "message": (
+            "Market discovery is performed through "
+            "Deriv's public WebSocket."
         )
-
-        return data
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "message": str(error)
-        }
-
-
-@app.get(
-    "/candles/{symbol}/{timeframe}"
-)
-async def candles(
-    symbol: str,
-    timeframe: str
-):
-
-    timeframe = timeframe.upper()
-
-    timeframes = {
-        "M5": 300,
-        "M15": 900,
-        "H1": 3600
     }
-
-    if timeframe not in timeframes:
-
-        return {
-            "status": "error",
-            "message": "Use M5, M15 or H1."
-        }
-
-
-    try:
-
-        data = await get_candles(
-            symbol.upper(),
-            timeframes[timeframe],
-            100
-        )
-
-        return data
-
-    except Exception as error:
-
-        return {
-            "status": "error",
-            "message": str(error)
-        }
